@@ -20,40 +20,52 @@ function extractJsonString(responseText) {
 }
 
 app.post('/gemini', async (req, res) => {
-    const { topic, difficulty, noOfQuestions } = req.body;
-    if (!topic || !difficulty || !noOfQuestions) {
-        res.send("None");
-    }
-    console.log(topic, noOfQuestions, difficulty)
-    const model = await genAi.getGenerativeModel({ model: "gemini-pro" })
-    const prompt =
-        `Generate ${noOfQuestions} questions on the topic "${topic}" of ${difficulty} difficulty in JSON format, strictly adhering to the following format:
+    try {
+        const { topic, difficulty, noOfQuestions } = req.body;
+        if (!topic || !difficulty || !noOfQuestions) {
+            res.send({
+                questions: [],
+                options: [],
+                answers: []
+            })
+        }
+        console.log(topic, noOfQuestions, difficulty)
+        const model = await genAi.getGenerativeModel({ model: "gemini-pro" })
+        const prompt =
+            `Generate ${noOfQuestions} questions on the topic "${topic}" of ${difficulty} difficulty in JSON format, strictly adhering to the following format:
         \n[\n{\nquestion: \"\",\noptions: [\n\"\",\n\"\",\n\"\",\n\"\"\n],\nanswer: \"<1 or 2 or 3 or 4>\"\n}\n]. Note that use single quote between the double quotes of the question or option instead of double quote, if there so that I can parse them properly.
         `
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response.candidates[0].content.parts[0].text.toString();
-    const jsonString = extractJsonString(response);
-    const parsedResponse = await JSON.parse(jsonString);
-    let questions = []
-    let options = []
-    let answers = []
+        const result = await model.generateContent(prompt);
+        const response = await result.response.candidates[0].content.parts[0].text.toString();
+        const jsonString = extractJsonString(response);
+        const parsedResponse = await JSON.parse(jsonString);
+        let questions = []
+        let options = []
+        let answers = []
 
-    await parsedResponse.forEach(async item => {
-        questions.push(item.question);
-        let temp = [];
-        await item.options.forEach(option => {
-            temp.push(option);
+        await parsedResponse.forEach(async item => {
+            questions.push(item.question);
+            let temp = [];
+            await item.options.forEach(option => {
+                temp.push(option);
+            })
+            options.push(temp);
+            answers.push(item.answer);
+        });
+
+        const body = {
+            questions, options, answers
+        }
+
+        res.send(body);
+    } catch (e) {
+        res.send({
+            questions: [],
+            options: [],
+            answers: []
         })
-        options.push(temp);
-        answers.push(item.answer);
-    });
-
-    const body = {
-        questions, options, answers
     }
-
-    res.send(body);
 })
 
 app.listen(port, () => {
